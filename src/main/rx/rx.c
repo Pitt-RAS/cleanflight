@@ -143,6 +143,10 @@ static uint8_t nullFrameStatus(void)
     return RX_FRAME_PENDING;
 }
 
+static rcReadRawDataPtr rcReadRawFunc = nullReadRawRC;
+static rcReadRawDataPtr mspReadRawFunc = nullReadRawRC;
+static uint16_t rxRefreshRate;
+
 bool serialRxInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxRuntimeConfig);
 
 #define REQUIRED_CHANNEL_MASK 0x0F // first 4 channels
@@ -216,8 +220,10 @@ void rxInit(modeActivationCondition_t *modeActivationConditions)
     }
 #endif
 
-    if (feature(FEATURE_RX_MSP)) {
-        rxMspInit(rxConfig(), &rxRuntimeConfig);
+    // if (feature(FEATURE_RX_MSP)) {
+    if (1) {
+        rxRefreshRate = 20000;
+        rxMspInit(rxConfig(), &mspReadRawFunc); // I changed this to point to the MSP callback
     }
 
     if (feature(FEATURE_RX_PPM) || feature(FEATURE_RX_PARALLEL_PWM)) {
@@ -473,19 +479,36 @@ static void readRxChannelsApplyRanges(void)
 {
     uint8_t channel;
 
+    uint16_t MSP_channels[8];
+    uint16_t RC_channels[8];
+
     for (channel = 0; channel < rxRuntimeConfig.channelCount; channel++) {
 
         uint8_t rawChannel = calculateChannelRemapping(rxConfig()->rcmap, ARRAYLEN(rxConfig()->rcmap), channel);
 
         // sample the channel
-        uint16_t sample = rxRuntimeConfig.rcReadRawFn(&rxRuntimeConfig, rawChannel);
+        // rcReadRawFunc is a virtual pointer to several different RC sources
+        uint16_t msp_sample = mspReadRawFunc(&rxRuntimeConfig, rawChannel);
+        uint16_t rc_sample = rcReadRawFunc(&rxRuntimeConfig, rawChannel);
 
         // apply the rx calibration
         if (channel < NON_AUX_CHANNEL_COUNT) {
-            sample = applyRxChannelRangeConfiguraton(sample, channelRanges(channel));
+            msp_sample = applyRxChannelRangeConfiguraton(msp_sample, rxConfig->channelRanges[channel]);
+            rc_sample = applyRxChannelRangeConfiguraton(rc_sample, rxConfig->channelRanges[channel]);
         }
-
-        rcRaw[channel] = sample;
+        
+        MSP_channels[channel] = msp_sample;
+        RC_channels[rawChannel] = rc_sample;
+    }
+    // filter through buddy-box
+    for(channel = 0; channel < rxRuntimeConfig.channelCount; channel++){
+        if((channel < 2 || channel == 3) && RC_channels[4] > 1500){ // allow RC override if sticks are moved
+            rcRaw[channel]  = (abs(RC_channels[channel] - 1500) < 100) ? MSP_channels[channel] : RC_channels[channel];
+        }else if(channel == 2){ // take minimum thrust
+            rcRaw[channel] = (RC_channels[channel] > MSP_channels[channel]) ? MSP_channels[channel] : RC_channels[channel];
+        }else{
+            rcRaw[channel]  = RC_channels[channel];     
+        }
     }
 }
 
