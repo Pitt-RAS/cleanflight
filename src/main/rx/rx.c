@@ -511,10 +511,16 @@ static void readRxChannelsApplyRanges(void)
         autopilot = true;
     }
 
+    // Used to detect if we could accidentally make a sudden jump in throttle when turning
+    // off the autopilot
+    static bool throttle_jump_possible = false;
+
     // Filter through the channels and set appropriately
     for(channel = 0; channel < rxRuntimeConfig.channelCount; channel++){
         if(autopilot)
         {
+            throttle_jump_possible = true;
+
             if((channel == ROLL || channel == PITCH || channel == YAW))
             {
                 // allow RC override if control sticks are moved
@@ -542,7 +548,19 @@ static void readRxChannelsApplyRanges(void)
         // If the auto-pilot is off the RC controller owns everything armed is controlled in above code
         else
         {
-            rcRaw[channel]  = RC_channels[channel]; 
+            if(channel == THROTTLE && throttle_jump_possible)
+            {
+                // Only allow the rc throttle to take over when it goes back below the msp throttle
+                if(RC_channels[channel] <= rcRaw[channel])
+                {
+                    rcRaw[channel] = RC_channels[channel];
+                    throttle_jump_possible = false;
+                }
+            }
+            else
+            {
+                rcRaw[channel]  = RC_channels[channel];
+            }
         }
     }
 }
