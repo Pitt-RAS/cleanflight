@@ -523,7 +523,12 @@ static void readRxChannelsApplyRanges(void)
             else if(channel == THROTTLE){
                 // saturate thrust at RC value even when accepting MSP commands. This allows the throttle to be cut easily.
                 rcRaw[channel] = (RC_channels[channel] < MSP_channels[channel]) ? RC_channels[channel] : MSP_channels[channel];
-            } 
+            }
+            else if(channel==AUX1)
+            {
+                // If the RC is armed and auto is on then msp gets to control the actual arming
+                rcRaw[AUX1] = (RC_channels[AUX1] > 1800) ? MSP_channels[channel] : RC_channels[channel];
+            }
             else if(channel==AUX2 || channel == AUX3 || channel == AUX4){
                 // These channels always belong to the MSP
                 rcRaw[channel]  = MSP_channels[channel];
@@ -537,23 +542,8 @@ static void readRxChannelsApplyRanges(void)
         // If the auto-pilot is off the RC controller owns everything armed is controlled in above code
         else
         {
-            // Don't touch the autopilot channel its done by the below auto-pilot code
-            if(channel != AUX1)
-            {
-                rcRaw[channel]  = RC_channels[channel]; 
-            }    
+            rcRaw[channel]  = RC_channels[channel]; 
         }
-    }
-
-    // Allow the autopilot to control the arming if the RC arm is on and autopilot is on
-    if((RC_channels[AUX1] > 1800) && autopilot)
-    {
-        rcRaw[AUX1] = MSP_channels[AUX1];
-    }
-    else
-    {
-        // Rc controller controls arming
-        rcRaw[AUX1] = RC_channels[AUX1];
     }
 }
 
