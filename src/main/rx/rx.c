@@ -505,63 +505,57 @@ static void readRxChannelsApplyRanges(void)
     }
 
     // Autopilot variable is preset here to make further if statements easier
-    bool autopilot = false;
-    if(RC_channels[AUX5] > 1800)
-    {
-        autopilot = true;
-    }
+    bool autopilot = (RC_channels[AUX5] > 1800) ? true : false;
 
     // Used to detect if we could accidentally make a sudden jump in throttle when turning
     // off the autopilot
     static bool throttle_jump_possible = false;
 
-    // Filter through the channels and set appropriately
-    for(channel = 0; channel < rxRuntimeConfig.channelCount; channel++){
-        if(autopilot)
-        {
-            throttle_jump_possible = true;
+    if(autopilot)
+    {
+        // allow RC override if control sticks are moved
+        rcRaw[ROLL]  = (abs(RC_channels[ROLL] - 1500) < 50) ? MSP_channels[ROLL] : RC_channels[ROLL];
+        rcRaw[PITCH]  = (abs(RC_channels[PITCH] - 1500) < 50) ? MSP_channels[PITCH] : RC_channels[PITCH];
+        rcRaw[YAW]  = (abs(RC_channels[YAW] - 1500) < 50) ? MSP_channels[YAW] : RC_channels[YAW];
 
-            if((channel == ROLL || channel == PITCH || channel == YAW))
-            {
-                // allow RC override if control sticks are moved
-                rcRaw[channel]  = (abs(RC_channels[channel] - 1500) < 50) ? MSP_channels[channel] : RC_channels[channel];
-            }
-            else if(channel == THROTTLE){
-                // saturate thrust at RC value even when accepting MSP commands. This allows the throttle to be cut easily.
-                rcRaw[channel] = (RC_channels[channel] < MSP_channels[channel]) ? RC_channels[channel] : MSP_channels[channel];
-            }
-            else if(channel==AUX1)
-            {
-                // If the RC is armed and auto is on then msp gets to control the actual arming
-                rcRaw[AUX1] = (RC_channels[AUX1] > 1800) ? MSP_channels[channel] : RC_channels[channel];
-            }
-            else if(channel==AUX2 || channel == AUX3 || channel == AUX4){
-                // These channels always belong to the MSP
-                rcRaw[channel]  = MSP_channels[channel];
-            }
-            // Channels AUX5 and on are owned by the RC controller at all times
-            else if(channel > AUX4)
-            {
-                rcRaw[channel] = RC_channels[channel];
-            }
-        }
-        // If the auto-pilot is off the RC controller owns everything armed is controlled in above code
-        else
+        // saturate thrust at RC value even when accepting MSP commands. This allows the throttle to be cut easily.
+        throttle_jump_possible = true;
+        rcRaw[THROTTLE] = (RC_channels[THROTTLE] < MSP_channels[THROTTLE]) ? RC_channels[THROTTLE] : MSP_channels[THROTTLE];
+
+        // If the RC is armed and auto is on then msp gets to control the actual arming
+        rcRaw[AUX1] = (RC_channels[AUX1] > 1800) ? MSP_channels[AUX1] : RC_channels[AUX1];
+
+        // These channels always belong to the MSP if autopilots on
+        rcRaw[AUX2]  = MSP_channels[AUX2];
+        rcRaw[AUX3]  = MSP_channels[AUX3];
+        rcRaw[AUX4]  = MSP_channels[AUX4];
+    }
+    // If the auto-pilot is off the RC controller owns everything armed is controlled in above code
+    else
+    {
+        for(channel = 0; channel < AUX5; channel++)
         {
-            if(channel == THROTTLE && throttle_jump_possible)
+            // If it's throttle and jump is possible
+            if((channel == THROTTLE) && throttle_jump_possible)
             {
-                // Only allow the rc throttle to take over when it goes back below the msp throttle
+                // Find out if we will have a throttle jump
                 if(RC_channels[channel] <= rcRaw[channel])
                 {
-                    rcRaw[channel] = RC_channels[channel];
                     throttle_jump_possible = false;
+                    rcRaw[THROTTLE] = RC_channels[THROTTLE];
                 }
             }
             else
             {
-                rcRaw[channel]  = RC_channels[channel];
+                rcRaw[channel] = RC_channels[channel];
             }
         }
+    }
+
+    // These channels always belong to the RC
+    for(channel = AUX5; channel < rxRuntimeConfig.channelCount; channel++)
+    {
+        rcRaw[channel]  = RC_channels[channel];
     }
 }
 
