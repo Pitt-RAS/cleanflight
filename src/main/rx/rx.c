@@ -143,9 +143,7 @@ static uint8_t nullFrameStatus(void)
     return RX_FRAME_PENDING;
 }
 
-static rcReadRawDataPtr rcReadRawFunc = nullReadRawRC;
-static rcReadRawDataPtr mspReadRawFunc = nullReadRawRC;
-static uint16_t rxRefreshRate;
+static rxRuntimeConfig_t rxMspConfig;
 
 bool serialRxInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxRuntimeConfig);
 
@@ -222,8 +220,7 @@ void rxInit(modeActivationCondition_t *modeActivationConditions)
 
     // if (feature(FEATURE_RX_MSP)) {
     if (1) {
-        rxRefreshRate = 20000;
-        rxMspInit(rxConfig(), &mspReadRawFunc); // I changed this to point to the MSP callback
+        rxMspInit(rxConfig(), &rxMspConfig); // I changed this to point to the MSP callback
     }
 
     if (feature(FEATURE_RX_PPM) || feature(FEATURE_RX_PARALLEL_PWM)) {
@@ -488,8 +485,8 @@ static void readRxChannelsApplyRanges(void)
 
         // sample the channel
         // rcReadRawFunc is a virtual pointer to several different RC sources
-        uint16_t msp_sample = mspReadRawFunc(&rxRuntimeConfig, rawChannel);
-        uint16_t rc_sample = rcReadRawFunc(&rxRuntimeConfig, rawChannel);
+        uint16_t msp_sample = rxMspConfig.rcReadRawFn(&rxMspConfig, rawChannel);
+        uint16_t rc_sample = rxRuntimeConfig.rcReadRawFn(&rxRuntimeConfig, rawChannel);
 
         // apply the rx calibration
         if (channel < NON_AUX_CHANNEL_COUNT) {
