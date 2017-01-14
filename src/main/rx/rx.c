@@ -143,6 +143,8 @@ static uint8_t nullFrameStatus(void)
     return RX_FRAME_PENDING;
 }
 
+static rxRuntimeConfig_t rxMspConfig;
+
 bool serialRxInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxRuntimeConfig);
 
 #define REQUIRED_CHANNEL_MASK 0x0F // first 4 channels
@@ -216,8 +218,9 @@ void rxInit(modeActivationCondition_t *modeActivationConditions)
     }
 #endif
 
-    if (feature(FEATURE_RX_MSP)) {
-        rxMspInit(rxConfig(), &rxRuntimeConfig);
+    // if (feature(FEATURE_RX_MSP)) {
+    if (1) {
+        rxMspInit(rxConfig(), &rxMspConfig); // I changed this to point to the MSP callback
     }
 
     if (feature(FEATURE_RX_PPM) || feature(FEATURE_RX_PARALLEL_PWM)) {
@@ -473,19 +476,83 @@ static void readRxChannelsApplyRanges(void)
 {
     uint8_t channel;
 
+    int16_t MSP_channels[MAX_SUPPORTED_RC_CHANNEL_COUNT];
+    int16_t RC_channels[MAX_SUPPORTED_RC_CHANNEL_COUNT];
+
     for (channel = 0; channel < rxRuntimeConfig.channelCount; channel++) {
 
         uint8_t rawChannel = calculateChannelRemapping(rxConfig()->rcmap, ARRAYLEN(rxConfig()->rcmap), channel);
 
         // sample the channel
-        uint16_t sample = rxRuntimeConfig.rcReadRawFn(&rxRuntimeConfig, rawChannel);
+        // rcReadRawFunc is a virtual pointer to several different RC sources
+        uint16_t msp_sample = rxMspConfig.rcReadRawFn(&rxMspConfig, rawChannel);
+        uint16_t rc_sample = rxRuntimeConfig.rcReadRawFn(&rxRuntimeConfig, rawChannel);
 
         // apply the rx calibration
         if (channel < NON_AUX_CHANNEL_COUNT) {
-            sample = applyRxChannelRangeConfiguraton(sample, channelRanges(channel));
+            msp_sample = applyRxChannelRangeConfiguraton(msp_sample, channelRanges(channel));
+            rc_sample = applyRxChannelRangeConfiguraton(rc_sample, channelRanges(channel));
         }
 
-        rcRaw[channel] = sample;
+        bool validPulse = isPulseValid(msp_sample);
+        if(!validPulse)
+            msp_sample = (channel == THROTTLE ? 1000 : 1500);
+        MSP_channels[channel] = msp_sample;
+        RC_channels[channel] = rc_sample;
+    }
+
+    // Autopilot variable is preset here to make further if statements easier
+    bool autopilot = (RC_channels[AUX5] > 1800) ? true : false;
+
+    // Used to detect if we could accidentally make a sudden jump in throttle when turning
+    // off the autopilot
+    static bool throttle_jump_possible = false;
+
+    if(autopilot)
+    {
+        // allow RC override if control sticks are moved
+        rcRaw[ROLL]  = (abs(RC_channels[ROLL] - 1500) < 50) ? MSP_channels[ROLL] : RC_channels[ROLL];
+        rcRaw[PITCH]  = (abs(RC_channels[PITCH] - 1500) < 50) ? MSP_channels[PITCH] : RC_channels[PITCH];
+        rcRaw[YAW]  = (abs(RC_channels[YAW] - 1500) < 50) ? MSP_channels[YAW] : RC_channels[YAW];
+
+        // saturate thrust at RC value even when accepting MSP commands. This allows the throttle to be cut easily.
+        throttle_jump_possible = true;
+        rcRaw[THROTTLE] = (RC_channels[THROTTLE] < MSP_channels[THROTTLE]) ? RC_channels[THROTTLE] : MSP_channels[THROTTLE];
+
+        // If the RC is armed and auto is on then msp gets to control the actual arming
+        rcRaw[AUX1] = (RC_channels[AUX1] > 1800) ? MSP_channels[AUX1] : RC_channels[AUX1];
+
+        // These channels always belong to the MSP if autopilots on
+        rcRaw[AUX2]  = MSP_channels[AUX2];
+        rcRaw[AUX3]  = MSP_channels[AUX3];
+        rcRaw[AUX4]  = MSP_channels[AUX4];
+    }
+    // If the auto-pilot is off the RC controller owns everything armed is controlled in above code
+    else
+    {
+        for(channel = 0; channel < AUX5; channel++)
+        {
+            // If it's throttle and jump is possible
+            if((channel == THROTTLE) && throttle_jump_possible)
+            {
+                // Find out if we will have a throttle jump
+                if(RC_channels[channel] <= rcRaw[channel])
+                {
+                    throttle_jump_possible = false;
+                    rcRaw[THROTTLE] = RC_channels[THROTTLE];
+                }
+            }
+            else
+            {
+                rcRaw[channel] = RC_channels[channel];
+            }
+        }
+    }
+
+    // These channels always belong to the RC
+    for(channel = AUX5; channel < rxRuntimeConfig.channelCount; channel++)
+    {
+        rcRaw[channel]  = RC_channels[channel];
     }
 }
 
