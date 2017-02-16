@@ -166,6 +166,7 @@ void pidLuxFloat(const pidProfile_t *pidProfile, const controlRateConfig_t *cont
     }
 
     static float lastAttitude[3];
+    static uint8_t ranOnce = 0;
     // ----------PID controller----------
     for (int axis = 0; axis < 3; axis++) {
         const uint8_t rate = controlRateConfig->rates[axis];
@@ -192,7 +193,14 @@ void pidLuxFloat(const pidProfile_t *pidProfile, const controlRateConfig_t *cont
                     // ANGLE mode
                     const float current_attitude = attitude.raw[axis] - angleTrim->raw[axis];
                     const float d_error = (current_attitude - lastAttitude[axis]) / getdT();
-                    angleRate = errorAngle * (pidProfile->P8[PIDLEVEL] / 16.0f) + d_error * (pidProfile->D8[PIDLEVEL] / 16.0f);
+                    if(ranOnce == 1)
+                    {
+                        angleRate = errorAngle * (pidProfile->P8[PIDLEVEL] / 16.0f) + d_error * (pidProfile->D8[PIDLEVEL] / 16.0f);
+                    }
+                    else
+                    {
+                        angleRate = 0.0f;
+                    }
                     lastAttitude[axis] = d_error;
                 } else {
                     // HORIZON mode
@@ -202,6 +210,7 @@ void pidLuxFloat(const pidProfile_t *pidProfile, const controlRateConfig_t *cont
                 }
             }
         }
+        ranOnce = 1;
 
         // --------low-level gyro-based PID. ----------
         const float gyroRate = luxGyroScale * gyroADCf[axis] * gyro.scale;
