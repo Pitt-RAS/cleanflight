@@ -210,7 +210,6 @@ void pidLuxFloat(const pidProfile_t *pidProfile, const controlRateConfig_t *cont
                 }
             }
         }
-        ranOnce = 1;
 
         // --------low-level gyro-based PID. ----------
         const float gyroRate = luxGyroScale * gyroADCf[axis] * gyro.scale;
@@ -222,5 +221,6 @@ void pidLuxFloat(const pidProfile_t *pidProfile, const controlRateConfig_t *cont
         }
 #endif
     }
+    ranOnce = 1;
 }
 
