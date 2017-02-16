@@ -165,6 +165,7 @@ void pidLuxFloat(const pidProfile_t *pidProfile, const controlRateConfig_t *cont
                 pidProfile->horizon_tilt_mode, pidProfile->D8[PIDLEVEL]) / 100.0f;
     }
 
+    static float lastAttitude[3];
     // ----------PID controller----------
     for (int axis = 0; axis < 3; axis++) {
         const uint8_t rate = controlRateConfig->rates[axis];
@@ -189,7 +190,10 @@ void pidLuxFloat(const pidProfile_t *pidProfile, const controlRateConfig_t *cont
 #endif
                 if (FLIGHT_MODE(ANGLE_MODE)) {
                     // ANGLE mode
-                    angleRate = errorAngle * pidProfile->P8[PIDLEVEL] / 16.0f;
+                    const float current_attitude = attitude.raw[axis] - angleTrim->raw[axis];
+                    const float d_error = (current_attitude - lastAttitude[axis]) / getdT();
+                    angleRate = errorAngle * (pidProfile->P8[PIDLEVEL] / 16.0f) + d_error * (pidProfile->D8[PIDLEVEL] / 16.0f);
+                    lastAttitude[axis] = d_error;
                 } else {
                     // HORIZON mode
                     // mix in errorAngle to desired angleRate to add a little auto-level feel.
