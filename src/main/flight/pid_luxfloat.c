@@ -191,17 +191,17 @@ void pidLuxFloat(const pidProfile_t *pidProfile, const controlRateConfig_t *cont
 #endif
                 if (FLIGHT_MODE(ANGLE_MODE)) {
                     // ANGLE mode
-                    const float current_attitude = attitude.raw[axis] - angleTrim->raw[axis];
+                    const float current_attitude = attitude.raw[axis];
                     const float d_error = (current_attitude - lastAttitude[axis]) / getdT();
                     if(ranOnce == 1)
                     {
-                        angleRate = errorAngle * (pidProfile->P8[PIDLEVEL] / 16.0f) + d_error * (pidProfile->D8[PIDLEVEL] / 16.0f);
+                        angleRate = errorAngle * (pidProfile->P8[PIDLEVEL] / 16.0f) - d_error * (pidProfile->D8[PIDLEVEL] / 16.0f);
                     }
                     else
                     {
                         angleRate = 0.0f;
                     }
-                    lastAttitude[axis] = d_error;
+                    lastAttitude[axis] = current_attitude;
                 } else {
                     // HORIZON mode
                     // mix in errorAngle to desired angleRate to add a little auto-level feel.
