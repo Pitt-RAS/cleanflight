@@ -56,6 +56,7 @@
 extern float dT;
 extern uint8_t PIDweight[3];
 extern float lastITermf[3], ITermLimitf[3];
+extern float lastITermAnglef[3];
 
 extern pt1Filter_t deltaFilter[3];
 extern pt1Filter_t yawFilter;
@@ -165,6 +166,8 @@ void pidLuxFloat(const pidProfile_t *pidProfile, const controlRateConfig_t *cont
                 pidProfile->horizon_tilt_mode, pidProfile->D8[PIDLEVEL]) / 100.0f;
     }
 
+    static float lastAttitude[3];
+    static uint8_t ranOnce = 0;
     // ----------PID controller----------
     for (int axis = 0; axis < 3; axis++) {
         const uint8_t rate = controlRateConfig->rates[axis];
@@ -189,7 +192,24 @@ void pidLuxFloat(const pidProfile_t *pidProfile, const controlRateConfig_t *cont
 #endif
                 if (FLIGHT_MODE(ANGLE_MODE)) {
                     // ANGLE mode
-                    angleRate = errorAngle * pidProfile->P8[PIDLEVEL] / 16.0f;
+                    const float current_attitude = attitude.raw[axis];
+                    const float d_error = (current_attitude - lastAttitude[axis]) / getdT();
+                    lastITermAnglef[axis] += errorAngle * getdT();
+
+                    // errorAngle is in 10ths of a degree, dT is in seconds
+                    // limit i_term to 10 degree seconds
+                    lastITermAnglef[axis] = constrainf(lastITermAnglef[axis], -100, 100);
+                    if(ranOnce == 1)
+                    {
+                        angleRate = errorAngle * (pidProfile->P8[PIDLEVEL] / 16.0f)
+                                  + lastITermAnglef[axis] * (pidProfile->I8[PIDLEVEL] / 16.0f)
+                                  - d_error * (pidProfile->D8[PIDLEVEL] / 16.0f);
+                    }
+                    else
+                    {
+                        angleRate = 0.0f;
+                    }
+                    lastAttitude[axis] = current_attitude;
                 } else {
                     // HORIZON mode
                     // mix in errorAngle to desired angleRate to add a little auto-level feel.
@@ -209,5 +229,6 @@ void pidLuxFloat(const pidProfile_t *pidProfile, const controlRateConfig_t *cont
         }
 #endif
     }
+    ranOnce = 1;
 }
 
