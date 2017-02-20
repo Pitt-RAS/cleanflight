@@ -61,6 +61,7 @@ uint8_t PIDweight[3];
 
 int32_t lastITerm[3], ITermLimit[3];
 float lastITermf[3], ITermLimitf[3];
+float lastITermAnglef[3];
 
 pt1Filter_t deltaFilter[3];
 pt1Filter_t yawFilter;
@@ -161,6 +162,7 @@ void pidResetITerm(void)
     for (int axis = 0; axis < 3; axis++) {
         lastITerm[axis] = 0;
         lastITermf[axis] = 0.0f;
+        lastITermAnglef[axis] = 0.0f;
     }
 }
 

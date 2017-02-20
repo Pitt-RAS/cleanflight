@@ -56,6 +56,7 @@
 extern float dT;
 extern uint8_t PIDweight[3];
 extern float lastITermf[3], ITermLimitf[3];
+extern float lastITermAnglef[3];
 
 extern pt1Filter_t deltaFilter[3];
 extern pt1Filter_t yawFilter;
@@ -167,7 +168,6 @@ void pidLuxFloat(const pidProfile_t *pidProfile, const controlRateConfig_t *cont
 
     static float lastAttitude[3];
     static uint8_t ranOnce = 0;
-    static float i_term[3] = {0.0f, 0.0f, 0.0f};
     // ----------PID controller----------
     for (int axis = 0; axis < 3; axis++) {
         const uint8_t rate = controlRateConfig->rates[axis];
@@ -194,15 +194,15 @@ void pidLuxFloat(const pidProfile_t *pidProfile, const controlRateConfig_t *cont
                     // ANGLE mode
                     const float current_attitude = attitude.raw[axis];
                     const float d_error = (current_attitude - lastAttitude[axis]) / getdT();
-                    i_term[axis] += errorAngle * getdT();
+                    lastITermAnglef[axis] += errorAngle * getdT();
 
                     // errorAngle is in 10ths of a degree, dT is in seconds
                     // limit i_term to 10 degree seconds
-                    i_term[axis] = constrainf(i_term[axis], -100, 100);
+                    lastITermAnglef[axis] = constrainf(lastITermAnglef[axis], -100, 100);
                     if(ranOnce == 1)
                     {
                         angleRate = errorAngle * (pidProfile->P8[PIDLEVEL] / 16.0f)
-                                  + i_term[axis] * (pidProfile->I8[PIDLEVEL] / 16.0f)
+                                  + lastITermAnglef[axis] * (pidProfile->I8[PIDLEVEL] / 16.0f)
                                   - d_error * (pidProfile->D8[PIDLEVEL] / 16.0f);
                     }
                     else
