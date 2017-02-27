@@ -519,7 +519,11 @@ static void readRxChannelsApplyRanges(void)
     {
         autopilot_arm_sequence_state = 2;
         // Also clear MSP channels to make sure old data doesn't sneak in
-        for(channel = 0; channel < rxRuntimeConfig.channelCount; channel++)
+        MSP_channels[ROLL]  = 1500;
+        MSP_channels[PITCH]  = 1500;
+        MSP_channels[YAW]  = 1500;
+        MSP_channels[THROTTLE] = 1000;
+        for(channel = AUX1; channel < rxRuntimeConfig.channelCount; channel++)
         {
             MSP_channels[channel] = 1000;
         }
