@@ -501,14 +501,59 @@ static void readRxChannelsApplyRanges(void)
         RC_channels[channel] = rc_sample;
     }
 
+    static uint8_t autopilot_arm_sequence_state = 0;
     // Autopilot variable is preset here to make further if statements easier
     bool autopilot = (RC_channels[AUX5] > 1800) ? true : false;
+    bool armed_switch = (RC_channels[AUX1] > 1800) ? true : false;
+
+    // If in starting state check if auto allowed
+    if(autopilot_arm_sequence_state == 0
+       && autopilot)
+    {
+        autopilot_arm_sequence_state = 1;
+    }
+
+    // Then wait for arming to be allowed, at this point auto pilot can fly
+    if(autopilot_arm_sequence_state == 1
+       && armed_switch)
+    {
+        autopilot_arm_sequence_state = 2;
+        // Also clear MSP channels to make sure old data doesn't sneak in
+        MSP_channels[ROLL]  = 1500;
+        MSP_channels[PITCH]  = 1500;
+        MSP_channels[YAW]  = 1500;
+        MSP_channels[THROTTLE] = 1000;
+        for(channel = AUX1; channel < rxRuntimeConfig.channelCount; channel++)
+        {
+            MSP_channels[channel] = 1000;
+        }
+    }
+
+    // If we are in auto pilot control state
+    if(autopilot_arm_sequence_state == 2)
+    {
+        // Check if either arming or autopilot was disabled
+        if(!armed_switch || !autopilot)
+        {
+            // Disable auto pilot
+            autopilot_arm_sequence_state = 3;
+        }
+    }
+
+    // Autopilot was disabled, wait for auto and arm to be disabled before restarting the sequence
+    if(autopilot_arm_sequence_state == 3)
+    {
+        if(!armed_switch && !autopilot)
+        {
+            autopilot_arm_sequence_state = 0;
+        }
+    }
 
     // Used to detect if we could accidentally make a sudden jump in throttle when turning
     // off the autopilot
     static bool throttle_jump_possible = false;
 
-    if(autopilot)
+    if(autopilot_arm_sequence_state == 2)
     {
         // allow RC override if control sticks are moved
         rcRaw[ROLL]  = (abs(RC_channels[ROLL] - 1500) < 50) ? MSP_channels[ROLL] : RC_channels[ROLL];
@@ -519,8 +564,7 @@ static void readRxChannelsApplyRanges(void)
         throttle_jump_possible = true;
         rcRaw[THROTTLE] = (RC_channels[THROTTLE] < MSP_channels[THROTTLE]) ? RC_channels[THROTTLE] : MSP_channels[THROTTLE];
 
-        // If the RC is armed and auto is on then msp gets to control the actual arming
-        rcRaw[AUX1] = (RC_channels[AUX1] > 1800) ? MSP_channels[AUX1] : RC_channels[AUX1];
+        rcRaw[AUX1] = MSP_channels[AUX1];
 
         // These channels always belong to the MSP if autopilots on
         rcRaw[AUX2]  = MSP_channels[AUX2];
