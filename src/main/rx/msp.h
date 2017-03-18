@@ -19,4 +19,5 @@
 
 uint8_t rxMspFrameStatus(void);
 void rxMspFrameReceive(uint16_t *frame, int channelCount);
+void rxMspChannelsReset();
 void rxMspInit(const rxConfig_t *initialRxConfig, rxRuntimeConfig_t *rxRuntimeConfig);

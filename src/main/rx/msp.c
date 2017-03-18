@@ -34,6 +34,8 @@
 #include "rx/rx.h"
 #include "rx/msp.h"
 
+#include "fc/rc_controls.h"
+
 static uint16_t mspFrame[MAX_SUPPORTED_RC_CHANNEL_COUNT];
 static bool rxMspFrameDone = false;
 
@@ -55,6 +57,19 @@ void rxMspFrameReceive(uint16_t *frame, int channelCount)
     }
 
     rxMspFrameDone = true;
+}
+
+void rxMspChannelsReset()
+{
+    // Also clear MSP channels to make sure old data doesn't sneak in
+    mspFrame[ROLL]  = 1500;
+    mspFrame[PITCH]  = 1500;
+    mspFrame[YAW]  = 1500;
+    mspFrame[THROTTLE] = 1000;
+    for(uint8_t channel = AUX1; channel < MAX_SUPPORTED_RC_CHANNEL_COUNT; channel++)
+    {
+        mspFrame[channel] = 1000;
+    }
 }
 
 uint8_t rxMspFrameStatus(void)
