@@ -64,8 +64,11 @@ void rxMspChannelsReset()
     // Also clear MSP channels to make sure old data doesn't sneak in
     mspFrame[ROLL]  = 1500;
     mspFrame[PITCH]  = 1500;
-    mspFrame[YAW]  = 1500;
-    mspFrame[THROTTLE] = 1000;
+
+    // It was found through testing that THROTTLE was actually YAW and YAW was THROTTLE
+    // It appears that items in these arrays aren't in the same order as in rx.c
+    mspFrame[THROTTLE]  = 1500;
+    mspFrame[YAW] = 1000;
     for(uint8_t channel = AUX1; channel < MAX_SUPPORTED_RC_CHANNEL_COUNT; channel++)
     {
         mspFrame[channel] = 1000;
