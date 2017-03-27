@@ -549,9 +549,9 @@ static void readRxChannelsApplyRanges(void)
     if(autopilot_arm_sequence_state == 2)
     {
         // allow RC override if control sticks are moved
-        rcRaw[ROLL]  = (abs(RC_channels[ROLL] - 1500) < 50) ? MSP_channels[ROLL] : RC_channels[ROLL];
-        rcRaw[PITCH]  = (abs(RC_channels[PITCH] - 1500) < 50) ? MSP_channels[PITCH] : RC_channels[PITCH];
-        rcRaw[YAW]  = (abs(RC_channels[YAW] - 1500) < 50) ? MSP_channels[YAW] : RC_channels[YAW];
+        rcRaw[ROLL]  = (abs(RC_channels[ROLL] - 1500) < 10) ? MSP_channels[ROLL] : RC_channels[ROLL];
+        rcRaw[PITCH]  = (abs(RC_channels[PITCH] - 1500) < 10) ? MSP_channels[PITCH] : RC_channels[PITCH];
+        rcRaw[YAW]  = (abs(RC_channels[YAW] - 1500) < 10) ? MSP_channels[YAW] : RC_channels[YAW];
 
         // saturate thrust at RC value even when accepting MSP commands. This allows the throttle to be cut easily.
         throttle_jump_possible = true;
