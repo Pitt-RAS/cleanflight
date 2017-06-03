@@ -94,6 +94,7 @@ STATIC_UNIT_TESTED int16_t pidLuxFloatCore(int axis, const pidProfile_t *pidProf
         if (pidProfile->yaw_p_limit && motorCount >= 4) {
             PTerm = constrainf(PTerm, -pidProfile->yaw_p_limit, pidProfile->yaw_p_limit);
         }
+        PTerm*=3.0;
     }
 
     // -----calculate I component
