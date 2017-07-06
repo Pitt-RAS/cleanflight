@@ -53,6 +53,7 @@ uint32_t targetPidLooptime;
 static bool pidStabilisationEnabled;
 
 float axisPID_P[3], axisPID_I[3], axisPID_D[3];
+float anglePID_I[3];
 
 static float dT;
 
@@ -133,6 +134,7 @@ void pidResetErrorGyroState(void)
 {
     for (int axis = 0; axis < 3; axis++) {
         axisPID_I[axis] = 0.0f;
+        anglePID_I[axis] = 0.0f;
     }
 }
 
@@ -335,6 +337,8 @@ static float calcHorizonLevelStrength() {
     return constrainf(horizonLevelStrength, 0, 1);
 }
 
+static uint8_t pidLevelRanOnce = 0;
+
 static float pidLevel(int axis, const pidProfile_t *pidProfile, const rollAndPitchTrims_t *angleTrim, float currentPidSetpoint) {
     // calculate error angle and limit the angle to the max inclination
     float angle = pidProfile->levelSensitivity * getRcDeflection(axis);
@@ -343,9 +347,32 @@ static float pidLevel(int axis, const pidProfile_t *pidProfile, const rollAndPit
 #endif
     angle = constrainf(angle, -pidProfile->levelAngleLimit, pidProfile->levelAngleLimit);
     const float errorAngle = angle - ((attitude.raw[axis] - angleTrim->raw[axis]) / 10.0f);
+
+    static float lastAttitude[3];
+
     if (FLIGHT_MODE(ANGLE_MODE)) {
         // ANGLE mode - control is angle based, so control loop is needed
-        currentPidSetpoint = errorAngle * levelGain;
+        // currentPidSetpoint = errorAngle * levelGain;
+
+        const float current_attitude = attitude.raw[axis];
+        const float d_error = (current_attitude - lastAttitude[axis]) / dT;
+        anglePID_I[axis] += errorAngle * dT;
+
+        // errorAngle is in 10ths of a degree, dT is in seconds
+        // limit i_term to 10 degree seconds
+        anglePID_I[axis] = constrainf(anglePID_I[axis], -100, 100);
+        if(pidLevelRanOnce == 1)
+        {
+            currentPidSetpoint = errorAngle * levelGain
+                                 + anglePID_I[axis] * horizonGain
+                                 - d_error * horizonTransition;
+        }
+        else
+        {
+            currentPidSetpoint = 0.0f;
+        }
+        lastAttitude[axis] = current_attitude;
+
     } else {
         // HORIZON mode - direct sticks control is applied to rate PID
         // mix up angle error to desired AngleRate to add a little auto-level feel
@@ -418,6 +445,7 @@ void pidController(const pidProfile_t *pidProfile, const rollAndPitchTrims_t *an
         // -----calculate P component and add Dynamic Part based on stick input
         axisPID_P[axis] = Kp[axis] * errorRate * tpaFactor;
         if (axis == FD_YAW) {
+            axisPID_P[axis] *= 3.0;
             axisPID_P[axis] = ptermYawFilterApplyFn(ptermYawFilter, axisPID_P[axis]);
         }
 
@@ -464,7 +492,9 @@ void pidController(const pidProfile_t *pidProfile, const rollAndPitchTrims_t *an
         if (!pidStabilisationEnabled) {
             axisPID_P[axis] = 0;
             axisPID_I[axis] = 0;
+            anglePID_I[axis] = 0;
             axisPID_D[axis] = 0;
         }
     }
+    pidLevelRanOnce = 1;
 }
