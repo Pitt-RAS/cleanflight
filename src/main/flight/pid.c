@@ -445,7 +445,7 @@ void pidController(const pidProfile_t *pidProfile, const rollAndPitchTrims_t *an
         // -----calculate P component and add Dynamic Part based on stick input
         axisPID_P[axis] = Kp[axis] * errorRate * tpaFactor;
         if (axis == FD_YAW) {
-            axisPID_P[axis] *= 3.0;
+            axisPID_P[axis] *= 3.0f;
             axisPID_P[axis] = ptermYawFilterApplyFn(ptermYawFilter, axisPID_P[axis]);
         }
 
