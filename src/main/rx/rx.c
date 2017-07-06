@@ -189,6 +189,8 @@ static uint8_t nullFrameStatus(void)
     return RX_FRAME_PENDING;
 }
 
+static rxRuntimeConfig_t rxMspConfig;
+
 #define REQUIRED_CHANNEL_MASK 0x0F // first 4 channels
 
 static uint8_t validFlightChannelMask;
@@ -321,8 +323,9 @@ void rxInit(void)
 #endif
 
 #ifdef USE_RX_MSP
-    if (feature(FEATURE_RX_MSP)) {
-        rxMspInit(rxConfig(), &rxRuntimeConfig);
+    // if (feature(FEATURE_RX_MSP)) {
+    if (1) {
+        rxMspInit(rxConfig(), &rxMspConfig);
         needRxSignalMaxDelayUs = DELAY_5_HZ;
     }
 #endif
@@ -506,22 +509,128 @@ static uint8_t getRxChannelCount(void)
     return maxChannelsAllowed;
 }
 
+
+
 static void readRxChannelsApplyRanges(void)
 {
     const int channelCount = getRxChannelCount();
+
+    int16_t MSP_channels[MAX_SUPPORTED_RC_CHANNEL_COUNT];
+    int16_t RC_channels[MAX_SUPPORTED_RC_CHANNEL_COUNT];
+
     for (int channel = 0; channel < channelCount; channel++) {
 
         const uint8_t rawChannel = calculateChannelRemapping(rxConfig()->rcmap, REMAPPABLE_CHANNEL_COUNT, channel);
 
         // sample the channel
-        uint16_t sample = rxRuntimeConfig.rcReadRawFn(&rxRuntimeConfig, rawChannel);
+        // uint16_t sample = rxRuntimeConfig.rcReadRawFn(&rxRuntimeConfig, rawChannel);
+        uint16_t rc_sample = rxRuntimeConfig.rcReadRawFn(&rxRuntimeConfig, rawChannel);
+        uint16_t msp_sample = rxMspConfig.rcReadRawFn(&rxMspConfig, rawChannel);
+
 
         // apply the rx calibration
         if (channel < NON_AUX_CHANNEL_COUNT) {
-            sample = applyRxChannelRangeConfiguraton(sample, rxChannelRangeConfigs(channel));
+            rc_sample = applyRxChannelRangeConfiguraton(rc_sample, rxChannelRangeConfigs(channel));
+            msp_sample = applyRxChannelRangeConfiguraton(msp_sample, rxChannelRangeConfigs(channel));
         }
 
-        rcRaw[channel] = sample;
+        if(!isPulseValid(msp_sample))
+            msp_sample = (channel == THROTTLE ? 1000 : 1500);
+        
+        RC_channels[channel] = rc_sample;
+        MSP_channels[channel] = msp_sample;
+    }
+
+    static uint8_t autopilot_arm_sequence_state = 0;
+    // Autopilot variable is preset here to make future if statements easier
+    bool autopilot = (RC_channels[AUX5] > 1800) ? true : false;
+    bool armed_switch = (RC_channels[AUX1] > 1800) ? true : false;
+
+    // If in starting state check if auto allowed
+    if(autopilot_arm_sequence_state == 0
+       && autopilot)
+    {
+        autopilot_arm_sequence_state = 1;
+    }
+
+    // Then wait for arming to be allowed, at this point auto pilot can fly
+    if(autopilot_arm_sequence_state == 1
+       && armed_switch)
+    {
+        autopilot_arm_sequence_state = 2;
+        // Also clear MSP channels to make sure old data doesn't sneak in
+        rxMspChannelsReset();
+    }
+
+    // If we are in auto pilot control state
+    if(autopilot_arm_sequence_state == 2)
+    {
+        // Check if either arming or autopilot was disabled
+        if(!armed_switch || !autopilot)
+        {
+            // Disable auto pilot
+            autopilot_arm_sequence_state = 3;
+        }
+    }
+
+    // Autopilot was disabled, wait for auto and arm to be disabled before restarting the sequence
+    if(autopilot_arm_sequence_state == 3)
+    {
+        if(!armed_switch && !autopilot)
+        {
+            autopilot_arm_sequence_state = 0;
+        }
+    }
+
+    // Used to detect if we could accidentally make a sudden jump in throttle when turning
+    // off the autopilot
+    static bool throttle_jump_possible = false;
+
+    if(autopilot_arm_sequence_state == 2)
+    {
+        // allow RC override if control sticks are moved
+        rcRaw[ROLL]  = (abs(RC_channels[ROLL] - 1500) < 10) ? MSP_channels[ROLL] : RC_channels[ROLL];
+        rcRaw[PITCH]  = (abs(RC_channels[PITCH] - 1500) < 10) ? MSP_channels[PITCH] : RC_channels[PITCH];
+        rcRaw[YAW]  = (abs(RC_channels[YAW] - 1500) < 10) ? MSP_channels[YAW] : RC_channels[YAW];
+
+        // saturate thrust at RC value even when accepting MSP commands. This allows the throttle to be cut easily.
+        throttle_jump_possible = true;
+        rcRaw[THROTTLE] = (RC_channels[THROTTLE] < MSP_channels[THROTTLE]) ? RC_channels[THROTTLE] : MSP_channels[THROTTLE];
+
+        // Allow the autopilot to control arming
+        rcRaw[AUX1] = MSP_channels[AUX1];
+
+        // These channels always belong to the MSP if autopilots on
+        rcRaw[AUX2]  = MSP_channels[AUX2];
+        rcRaw[AUX3]  = MSP_channels[AUX3];
+        rcRaw[AUX4]  = MSP_channels[AUX4];
+    }
+    // If the auto-pilot is off the RC controller owns everything armed is controlled in above code
+    else
+    {
+        for(int channel = 0; channel < AUX5; channel++)
+        {
+            // If it's throttle and jump is possible
+            if((channel == THROTTLE) && throttle_jump_possible)
+            {
+                // Find out if we will have a throttle jump
+                if(RC_channels[channel] <= rcRaw[channel])
+                {
+                    throttle_jump_possible = false;
+                    rcRaw[THROTTLE] = RC_channels[THROTTLE];
+                }
+            }
+            else
+            {
+                rcRaw[channel] = RC_channels[channel];
+            }
+        }
+    }
+
+    // These channels always belong to the RC
+    for(int channel = AUX5; channel < rxRuntimeConfig.channelCount; channel++)
+    {
+        rcRaw[channel]  = RC_channels[channel];
     }
 }
 
