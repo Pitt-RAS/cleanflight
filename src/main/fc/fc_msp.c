@@ -936,7 +936,7 @@ static bool mspFcProcessOutCommand(uint8_t cmdMSP, sbuf_t *dst, mspPostProcessFn
             // const uint8_t scale = (acc.dev.acc_1G > 512) ? 4 : 1;
             const uint8_t scale = 1;
             for (int i = 0; i < 3; i++) {
-                sbufWriteU16(dst, acc.accSmooth[i] / scale);
+                sbufWriteU16(dst, acc.accCorrectedRaw[i] / scale);
             }
             for (int i = 0; i < 3; i++) {
                 sbufWriteU16(dst, gyroRateDps(i));

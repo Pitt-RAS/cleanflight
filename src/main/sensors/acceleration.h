@@ -45,6 +45,7 @@ typedef struct acc_s {
     accDev_t dev;
     uint32_t accSamplingInterval;
     int32_t accSmooth[XYZ_AXIS_COUNT];
+    int32_t accCorrectedRaw[XYZ_AXIS_COUNT];
     bool isAccelUpdatedAtLeastOnce;
 } acc_t;
 
