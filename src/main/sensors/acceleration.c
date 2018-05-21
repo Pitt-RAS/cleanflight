@@ -78,7 +78,7 @@ extern bool AccInflightCalibrationActive;
 static flightDynamicsTrims_t *accelerationTrims;
 
 static uint16_t accLpfCutHz = 0;
-static uint16_t rawCutoffLpfCutHz = 100;
+static uint16_t rawCutoffLpfCutHz = 20;
 static biquadFilter_t accFilter[XYZ_AXIS_COUNT];
 static biquadFilter_t accFilterRaw[XYZ_AXIS_COUNT];
 
