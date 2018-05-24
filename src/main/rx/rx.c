@@ -544,6 +544,7 @@ static void readRxChannelsApplyRanges(void)
     static uint8_t autopilot_arm_sequence_state = 0;
     // Autopilot variable is preset here to make future if statements easier
     bool autopilot = (RC_channels[AUX5] > 1800) ? true : false;
+    bool partial_takeover = (RC_channels[AUX6] > 1800) ? true : false;
     bool armed_switch = (RC_channels[AUX1] > 1800) ? true : false;
 
     // If in starting state check if auto allowed
@@ -565,6 +566,15 @@ static void readRxChannelsApplyRanges(void)
     // If we are in auto pilot control state
     if(autopilot_arm_sequence_state == 2)
     {
+        // Completely disable autopilot if pitch, roll, or yaw are touched
+        if(!partial_takeover &&
+           (abs(RC_channels[ROLL] - 1500) > 15
+           || abs(RC_channels[PITCH] - 1500) > 15
+           || abs(RC_channels[YAW] - 1500) > 15))
+        {
+            autopilot_arm_sequence_state = 3;
+        }
+
         // Check if either arming or autopilot was disabled
         if(!armed_switch || !autopilot)
         {
