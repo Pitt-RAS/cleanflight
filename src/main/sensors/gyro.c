@@ -519,7 +519,7 @@ STATIC_UNIT_TESTED void performGyroCalibration(gyroSensor_t *gyroSensor, uint8_t
                 gyroSetCalibrationCycles(gyroSensor);
                 return;
             }
-            gyroSensor->gyroDev.gyroZero[axis] = (gyroSensor->calibration.sum[axis] + (gyroCalculateCalibratingCycles() / 2)) / gyroCalculateCalibratingCycles();
+            gyroSensor->gyroDev.gyroZero[axis] = gyroSensor->calibration.sum[axis]  / gyroCalculateCalibratingCycles();
         }
     }
 
