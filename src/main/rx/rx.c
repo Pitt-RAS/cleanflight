@@ -544,7 +544,7 @@ static void readRxChannelsApplyRanges(void)
     static uint8_t autopilot_arm_sequence_state = 0;
     // Autopilot variable is preset here to make future if statements easier
     bool autopilot = (RC_channels[AUX5] > 1800) ? true : false;
-    bool partial_takeover = (RC_channels[AUX6] > 1800) ? true : false;
+    bool partial_takeover = (RC_channels[AUX3] > 1800) ? true : false;
     bool armed_switch = (RC_channels[AUX1] > 1800) ? true : false;
 
     // If in starting state check if auto allowed
